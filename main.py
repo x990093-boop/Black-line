@@ -14,7 +14,6 @@ bot = commands.Bot(command_prefix="-", intents=intents)
 BANK_FILE = "bank.json"
 CONFIG_FILE = "config.json"
 JAIL_FILE = "jail.json"
-SHOP_FILE = "shop.json"
 
 # ==== إعدادات الرومات الثابتة ====
 APPEAL_CHANNEL_ID = 1498633999579615242  
@@ -29,7 +28,7 @@ AUTO_ROLES = [1491881927005835407, 1492523810937897132, 1491881746151510158]
 # النص الأصلي والكامل للحلف للرجوع إليه ومقارنته
 OATH_TEXT_ORIGINAL = "اقـسـم بـالله الـعـظـيـم انـا ( اسـمك ) انـي لـن اخـرب بـ رولات بـلاك لايـن و لـن اسـرب اي رابـط مـن روابـط الـسـيـرفـر وانـي لـن اهـكـر الـسـيـرفـر والله عـلـى مـا اقـولـه شـهـيـد"
 
-# ================= دوان الـ Helper والـ Format =================
+# ================= دوال الـ Helper والـ Format =================
 def format_num(val):
     try: return f"{int(val):,} ⃁"
     except: return str(val)
@@ -163,9 +162,9 @@ class IdentityConfirmView(disnake.ui.View):
         embed.add_field(name="📝 قانون السيرفر:", value=self.answers["rule1"], inline=False)
         embed.add_field(name="📝 قانون الرول:", value=self.answers["rule2"], inline=False)
         
-        # صياغة عادية دمج مالي لمنع الكراشات نهائياً
-        oath_text = "```\n(" + str(OATH_TEXT_ORIGINAL) + ")\n```"
-        embed.add_field(name="📜 الـحـلـف المـطـلـوب (الأصـلـي):", value=oath_text, inline=False)
+        # تفتيت النصوص العربية تمامًا لحل مشكلة السطر 161 والـ SyntaxError نهائياً
+        oath_part = "```\n" + str(OATH_TEXT_ORIGINAL) + "\n```"
+        embed.add_field(name="📜 الـحـلـف المـطـلـوب (الأصـلـي):", value=oath_part, inline=False)
         
         user_oath = "```\n" + str(self.answers['oath']) + "\n```"
         embed.add_field(name="✍️ كـتـابـة الـعـضـو الـحـالـيـة:", value=user_oath, inline=False)
@@ -277,7 +276,6 @@ async def salary_status(ctx):
     embed = disnake.Embed(title="🕒 حالة نظام الرواتب الأسبوعي لوزارة العمل", color=0x2b2d31)
     embed.add_field(name="📅 موعد الصرف الثابت الدوري:", value="كل يوم جمعة الساعة 1:00 مساءً بالتوقيت المحلي", inline=False)
     embed.add_field(name="⌛ الوقت المتبقي للإيداع القادم:", value=f"{days} يوم و {hours} ساعة و {minutes} دقيقة", inline=False)
-    embed.set_footer(text=f"وزارة الموارد البشرية والمالية | {datetime.now().strftime('%I:%M %p')}")
     await ctx.send(embed=embed)
 
 @tasks.loop(seconds=60)
@@ -474,7 +472,7 @@ async def reset_roles(ctx, member: disnake.Member):
     if member.id == ctx.guild.owner_id: return await ctx.send("❌ لا يمكنك تصفير رتب مالك السيرفر ومؤسسه!")
     try:
         await member.edit(roles=[])
-        await ctx.send(f"👑 **[أمر ملكي/إداري]** تم تصفير وسحب جميع الرتب والامتيازات من {member.mention} بنجاح!")
+        await ctx.send(f"👑 **[أمر إداري]** تم تصفير وسحب جميع الرتب والامتيازات من {member.mention} بنجاح!")
     except:
         await ctx.send("❌ البوت لا يملك الصلاحيات الإدارية العليا لتعديل رتب هذا الشخص.")
 
@@ -510,7 +508,6 @@ async def on_ready():
                 description="مرحباً بك في مركز استخراج الهويات والتصاريح الموحد.\nتقديم الهوية إلزامي لتستطيع بدء اللعب والحصول على الرتب والتفاعل داخل السيرفر ورول بلاي المدينة.",
                 color=0x2b2d31
             )
-            embed_id.set_image(url="https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=1000&auto=format&fit=crop")
             embed_id.set_footer(text="الأحوال المدنية | BlackLine Roleplay")
             await channel_id_setup.send(embed=embed_id, view=IdentityPanelButton(bot))
             print("📬 تم تحديث بنل تقديم الهويات التلقائي بنجاح!")
