@@ -29,14 +29,14 @@ AUTO_ROLES = [1491881927005835407, 1492523810937897132, 1491881746151510158]
 OATH_TEXT_ORIGINAL = "اقـسـم بـالله الـعـظـيـم انـا ( اسـمك ) انـي لـن اخـرب بـ رولات بـلاك لايـن و لـن اسـرب اي رابـط مـن روابـط الـسـيـرفـر وانـي لـن اهـكـر الـسـيـرفـر والله عـلـى مـا اقـولـه شـهـيـد"
 
 
-# ================= 🛡️ دالة التحقق الشاملة (تشمل الإدارة الصغرى والعليا) =================
+# ================= 🛡️ دالة التحقق الشاملة من رتب طاقم العمل والإدارة =================
 def check_admin_permission(member):
-    # يسمح لمالكي السيرفر والإداريين الأساسيين تلقائياً
-    if member.guild_permissions.administrator or member.guild_permissions.manage_guild or member.guild_permissions.kick_members:
+    # 1. إذا كان العضو يملك صلاحيات إدارية عامة في السيرفر
+    if member.guild_permissions.administrator or member.guild_permissions.manage_guild or member.guild_permissions.kick_members or member.guild_permissions.manage_roles:
         return True
     
-    # فحص الرتب الذكي ليشمل الإدارة الصغرى والوسطى والعليا وطاقم العمل
-    admin_keywords = ["اداره", "إدارة", "طاقم", "مسؤول", "مسئول", "اداري", "إداري", "امن", "أمن"]
+    # 2. الفحص بالكلمات الدلالية لجميع رتب الإدارة الصغرى والعليا وطاقم الدعم والأمن
+    admin_keywords = ["اداره", "إدارة", "طاقم", "مسؤول", "مسئول", "اداري", "إداري", "امن", "أمن", "دعم", "شرف", "مراقب"]
     for role in member.roles:
         role_name_lower = role.name.lower()
         if any(keyword in role_name_lower for keyword in admin_keywords):
@@ -86,9 +86,8 @@ class IdentityAdminButtons(disnake.ui.View):
 
     @disnake.ui.button(label="قبول", style=disnake.ButtonStyle.green, custom_id="id_approve_global")
     async def id_approve(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
-        # السماح للإدارة الصغرى والعليا بالضغط
         if not check_admin_permission(inter.author):
-            return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط بمختلف رتبهم!", ephemeral=True)
+            return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة والمسؤولين فقط بمختلف رتبهم!", ephemeral=True)
         
         await inter.response.defer()
         member = inter.guild.get_member(self.applicant_id)
@@ -131,9 +130,8 @@ class IdentityAdminButtons(disnake.ui.View):
 
     @disnake.ui.button(label="رفض", style=disnake.ButtonStyle.red, custom_id="id_deny_global")
     async def id_deny(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
-        # السماح للإدارة الصغرى والعليا بالضغط
         if not check_admin_permission(inter.author):
-            return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط بمختلف رتبهم!", ephemeral=True)
+            return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة والمسؤولين فقط بمختلف رتبهم!", ephemeral=True)
             
         embed = inter.message.embeds[0]
         embed.title = "❌ تم رفض طلب الهوية"
@@ -173,7 +171,6 @@ class IdentityConfirmView(disnake.ui.View):
         embed.add_field(name="📝 قانون السيرفر:", value=self.answers["rule1"], inline=False)
         embed.add_field(name="📝 قانون الرول:", value=self.answers["rule2"], inline=False)
         
-        # تم إصلاح تهيئة النص هنا لتجنب خطأ SyntaxError
         embed.add_field(name="📜 الـحـلـف المـطـلـوب (الأصـلـي):", value=f"```\n{OATH_TEXT_ORIGINAL}\n```", inline=False)
         embed.add_field(name="✍️ كـتـابـة الـعـضـو الـحـالـيـة:", value=f"```\n{self.answers['oath']}\n```", inline=False)
         
