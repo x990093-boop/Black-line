@@ -28,7 +28,24 @@ AUTO_ROLES = [1491881927005835407, 1492523810937897132, 1491881746151510158]
 # النص الأصلي والكامل للحلف
 OATH_TEXT_ORIGINAL = "اقـسـم بـالله الـعـظـيـم انـا ( اسـمك ) انـي لـن اخـرب بـ رولات بـلاك لايـن و لـن اسـرب اي رابـط مـن روابـط الـسـيـرفـر وانـي لـن اهـكـر الـسـيـرفـر والله عـلـى مـا اقـولـه شـهـيـد"
 
-# ================= دوال المساعدة والتحضير =================
+
+# ================= 🛡️ دالة التحقق الشاملة (تشمل الإدارة الصغرى والعليا) =================
+def check_admin_permission(member):
+    # يسمح لمالكي السيرفر والإداريين الأساسيين تلقائياً
+    if member.guild_permissions.administrator or member.guild_permissions.manage_guild or member.guild_permissions.kick_members:
+        return True
+    
+    # فحص الرتب الذكي ليشمل الإدارة الصغرى والوسطى والعليا وطاقم العمل
+    admin_keywords = ["اداره", "إدارة", "طاقم", "مسؤول", "مسئول", "اداري", "إداري", "امن", "أمن"]
+    for role in member.roles:
+        role_name_lower = role.name.lower()
+        if any(keyword in role_name_lower for keyword in admin_keywords):
+            return True
+            
+    return False
+
+
+# ================= ⚙️ دوال المساعدة وقواعد البيانات الأصلية =================
 def format_num(val):
     try: return f"{int(val):,} ⃁"
     except: return str(val)
@@ -58,28 +75,6 @@ def update_user(gid, uid, data):
     db[str(gid)][str(uid)] = data
     save(BANK_FILE, db)
 
-def get_next_identity_id():
-    config = load(CONFIG_FILE)
-    if "next_id" not in config:
-        config["next_id"] = 1123
-    current_id = config["next_id"]
-    config["next_id"] += 1
-    save(CONFIG_FILE, config)
-    return current_id
-
-def check_admin_permission(member):
-    # يسمح لمالكي السيرفر والإداريين الأساسيين
-    if member.guild_permissions.administrator or member.guild_permissions.manage_guild or member.guild_permissions.kick_members:
-        return True
-    
-    # يسمح لأي شخص يملك رتبة تحتوي على كلمات إدارية (صغرى، وسطى، عليا، طاقم، مسؤول)
-    admin_keywords = ["اداره", "إدارة", "طاقم", "مسؤول", "مسئول", "اداري", "إداري", "امن", "أمن"]
-    for role in member.roles:
-        role_name_lower = role.name.lower()
-        if any(keyword in role_name_lower for keyword in admin_keywords):
-            return True
-            
-    return False
 
 # ================= 🪪 نظام تقديم الهوية والتحقق للإدارة =================
 
@@ -91,6 +86,7 @@ class IdentityAdminButtons(disnake.ui.View):
 
     @disnake.ui.button(label="قبول", style=disnake.ButtonStyle.green, custom_id="id_approve_global")
     async def id_approve(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+        # السماح للإدارة الصغرى والعليا بالضغط
         if not check_admin_permission(inter.author):
             return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط بمختلف رتبهم!", ephemeral=True)
         
@@ -99,7 +95,13 @@ class IdentityAdminButtons(disnake.ui.View):
         if not member:
             return await inter.followup.send("❌ تعذر العثور على العضو داخل السيرفر.")
         
-        identity_id = get_next_identity_id()
+        config = load(CONFIG_FILE)
+        if "next_id" not in config:
+            config["next_id"] = 1123
+        identity_id = config["next_id"]
+        config["next_id"] += 1
+        save(CONFIG_FILE, config)
+        
         new_nick = f"{self.roblox_name} | {identity_id}"
         
         try: await member.edit(nick=new_nick)
@@ -121,7 +123,7 @@ class IdentityAdminButtons(disnake.ui.View):
         try:
             reply_embed = disnake.Embed(
                 title="🎉 تهانينا تفعيل هويتك!",
-                description="تم قبول طلب الهوية الخاص بك بنجاح!\n\n**🪪 رقم الهوية:** " + str(identity_id) + "\n**👤 الاسم الجديد:** " + str(new_nick) + "\n\nنتمنى لك وقتاً ممتعاً باللعب.",
+                description=f"تم قبول طلب الهوية الخاص بك بنجاح!\n\n**🪪 رقم الهوية:** {identity_id}\n**👤 الاسم الجديد:** {new_nick}\n\nنتمنى لك وقتاً ممتعاً باللعب.",
                 color=0x00ff00
             )
             await member.send(embed=reply_embed)
@@ -129,6 +131,7 @@ class IdentityAdminButtons(disnake.ui.View):
 
     @disnake.ui.button(label="رفض", style=disnake.ButtonStyle.red, custom_id="id_deny_global")
     async def id_deny(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+        # السماح للإدارة الصغرى والعليا بالضغط
         if not check_admin_permission(inter.author):
             return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط بمختلف رتبهم!", ephemeral=True)
             
@@ -170,10 +173,11 @@ class IdentityConfirmView(disnake.ui.View):
         embed.add_field(name="📝 قانون السيرفر:", value=self.answers["rule1"], inline=False)
         embed.add_field(name="📝 قانون الرول:", value=self.answers["rule2"], inline=False)
         
-        oath_part = "```\n" + str(OATH_TEXT_ORIGINAL) + "\n```"
+        oath_part = f"```\n{OATH_TEXT_ORIGINAL}\n
+```"
         embed.add_field(name="📜 الـحـلـف المـطـلـوب (الأصـلـي):", value=oath_part, inline=False)
         
-        user_oath = "```\n" + str(self.answers['oath']) + "\n```"
+        user_oath = f"```\n{self.answers['oath']}\n```"
         embed.add_field(name="✍️ كـتـابـة الـعـضـو الـحـالـيـة:", value=user_oath, inline=False)
         
         if self.answers["image_url"]:
@@ -206,7 +210,7 @@ class IdentityStartConfirmation(disnake.ui.View):
                 {"title": "3/7 طلب هوية", "desc": "اسم حسابك في روبلوكس (Roblox Username):"},
                 {"title": "4/7 طلب هوية", "desc": "اذكر قانوناً أساسياً واحداً من قوانين السيرفر:"},
                 {"title": "5/7 طلب هوية", "desc": "اذكر قانوناً واحداً خاصاً بنظام الرولبلاي:"},
-                {"title": "6/7 طلب هوية", "desc": "اكتب الحلف التالي نصاً بيدك وممنوع النسخ واللصق 👈 : ( " + str(OATH_TEXT_ORIGINAL) + " )"},
+                {"title": "6/7 طلب هوية", "desc": f"اكتب الحلف التالي نصاً بيدك وممنوع النسخ واللصق 👈 : ( {OATH_TEXT_ORIGINAL} )"},
                 {"title": "📸 إثبات الصورة الشخصية", "desc": "قم برفع لقطة شاشة لحسابك في روبلوكس الآن أو أرسل رابط الصورة الشخصية المباشر:"}
             ]
             
@@ -244,12 +248,12 @@ class IdentityPanelButton(disnake.ui.View):
     async def start_app(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
         await inter.response.send_message("📥 تم بدء العملية بنجاح! تفقد رسائلك الخاصة الآن لتعبئة الهوية الخاصة بك.", ephemeral=True)
         try:
-            await inter.author.send(embed=disnake.Embed(title="❓ تأكيد الرغبة في التقديم", description="هل أنت متأكد من رغبتك بالبدء بتقديم طلب هوية جديد في السيرفر؟", color=0x2b2d31), view=IdentityStartConfirmation(self.bot, inter.guild.id))
+            await inter.author.send(embed=disnake.Embed(title="❓ تأكيد الرغبة في التقديم", description="هل أنت متأكد من رغبتك بالبدء بتقديم طلب هوية جديد في السيرفر? ", color=0x2b2d31), view=IdentityStartConfirmation(self.bot, inter.guild.id))
         except:
             await inter.followup.send("❌ تعذر إرسال الأسئلة إليك، يرجى فتح رسائل الخاص بالسيرفر أولاً (Allow DMs).", ephemeral=True)
 
 
-# ================= 💵 نظام الرواتب والموارد البشرية =================
+# ================= 💵 نظام الرواتب والموارد البشرية الأصلي الخاص بك =================
 
 SALARY_ROLES = {
     "دعم فني مبتدئ": 4500, "دعم الفني مترقي": 5500, "دعم فني محترف": 6500, "مسؤول الدعم فني": 8500,
@@ -320,7 +324,7 @@ async def auto_salary_check():
                 await log_channel.send(embed=embed)
 
 
-# ================= 🏦 الأوامر الاقتصادية المتكاملة والتحويلات =================
+# ================= 🏦 الأوامر الاقتصادية المتكاملة والتحويلات الأصلي الخاص بك =================
 
 @bot.command(name="حسابي", aliases=["فلوسي", "بنك"])
 async def my_account(ctx):
@@ -388,7 +392,7 @@ async def transfer(ctx, member: disnake.Member, amount: int):
     await ctx.send(f"💸 تم تحويل مبلغ {format_num(amount)} من حسابك بنجاح إلى حساب {member.mention}.")
 
 
-# ================= 🎮 الألعاب والعمل وكسب المال (Economy Games) =================
+# ================= 🎮 الألعاب والعمل وكسب المال الأصلي الخاص بك =================
 
 @bot.command(name="عمل", aliases=["اشتغل"])
 async def work(ctx):
@@ -427,7 +431,7 @@ async def crime(ctx):
     update_user(ctx.guild.id, ctx.author.id, user)
 
 
-# ================= 👮 نظام العقوبات والسجن (Jail System) =================
+# ================= 👮 نظام العقوبات والسجن الأصلي الخاص بك =================
 
 @bot.command(name="سجن")
 async def jail_member(ctx, member: disnake.Member, minutes: int, *, reason: str = "غير محدد"):
@@ -495,6 +499,7 @@ async def reset_money(ctx, member: disnake.Member):
 async def on_ready():
     print(f"✅ تم تسجيل الدخول بنجاح باسم البوت: {bot.user}")
     
+    # ربط دائم للأزرار حتى لو قفل البوت واشتغل
     bot.add_view(IdentityPanelButton(bot))
     bot.add_view(IdentityAdminButtons(None, ""))
     
