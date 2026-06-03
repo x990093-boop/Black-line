@@ -31,9 +31,11 @@ OATH_TEXT_ORIGINAL = "اقـسـم بـالله الـعـظـيـم انـا ( 
 
 # ================= 🛡️ دالة التحقق الشاملة (تشمل الإدارة الصغرى والعليا) =================
 def check_admin_permission(member):
+    # يسمح لمالكي السيرفر والإداريين الأساسيين تلقائياً
     if member.guild_permissions.administrator or member.guild_permissions.manage_guild or member.guild_permissions.kick_members:
         return True
     
+    # فحص الرتب الذكي ليشمل الإدارة الصغرى والوسطى والعليا وطاقم العمل
     admin_keywords = ["اداره", "إدارة", "طاقم", "مسؤول", "مسئول", "اداري", "إداري", "امن", "أمن"]
     for role in member.roles:
         role_name_lower = role.name.lower()
@@ -84,6 +86,7 @@ class IdentityAdminButtons(disnake.ui.View):
 
     @disnake.ui.button(label="قبول", style=disnake.ButtonStyle.green, custom_id="id_approve_global")
     async def id_approve(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+        # السماح للإدارة الصغرى والعليا بالضغط
         if not check_admin_permission(inter.author):
             return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط بمختلف رتبهم!", ephemeral=True)
         
@@ -128,6 +131,7 @@ class IdentityAdminButtons(disnake.ui.View):
 
     @disnake.ui.button(label="رفض", style=disnake.ButtonStyle.red, custom_id="id_deny_global")
     async def id_deny(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+        # السماح للإدارة الصغرى والعليا بالضغط
         if not check_admin_permission(inter.author):
             return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط بمختلف رتبهم!", ephemeral=True)
             
@@ -169,12 +173,9 @@ class IdentityConfirmView(disnake.ui.View):
         embed.add_field(name="📝 قانون السيرفر:", value=self.answers["rule1"], inline=False)
         embed.add_field(name="📝 قانون الرول:", value=self.answers["rule2"], inline=False)
         
-        oath_part = f"```\n{OATH_TEXT_ORIGINAL}\n
-```"
-        embed.add_field(name="📜 الـحـلـف المـطـلـوب (الأصـلـي):", value=oath_part, inline=False)
-        
-        user_oath = f"```\n{self.answers['oath']}\n```"
-        embed.add_field(name="✍️ كـتـابـة الـعـضـو الـحـالـيـة:", value=user_oath, inline=False)
+        # تم إصلاح تهيئة النص هنا لتجنب خطأ SyntaxError
+        embed.add_field(name="📜 الـحـلـف المـطـلـوب (الأصـلـي):", value=f"```\n{OATH_TEXT_ORIGINAL}\n```", inline=False)
+        embed.add_field(name="✍️ كـتـابـة الـعـضـو الـحـالـيـة:", value=f"```\n{self.answers['oath']}\n```", inline=False)
         
         if self.answers["image_url"]:
             embed.set_image(url=self.answers["image_url"])
@@ -489,13 +490,12 @@ async def reset_money(ctx, member: disnake.Member):
     await ctx.send(f"💰 تم تصفير حساب {member.mention} المالي وإعادته للرصيد الافتراضي الافتتاحي.")
 
 
-# ================= ⚡ تشغيل البوت الآمن والـ Views الحية =================
+# ================= ⚡ تشغيل البوت والـ Views الحية =================
 
 @bot.event
 async def on_ready():
     print(f"✅ تم تسجيل الدخول بنجاح باسم البوت: {bot.user}")
     
-    # حماية الـ Views من الـ Crash باستعمال try
     try:
         bot.add_view(IdentityPanelButton(bot))
         bot.add_view(IdentityAdminButtons(None, ""))
@@ -510,7 +510,6 @@ async def on_ready():
         
     await bot.wait_until_ready()
     
-    # تحديث البنل بدون دالة البيرج (Purge) المسببة للكراش
     channel_id_setup = bot.get_channel(IDENTITY_SETUP_CHANNEL)
     if channel_id_setup:
         try:
