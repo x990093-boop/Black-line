@@ -67,6 +67,20 @@ def get_next_identity_id():
     save(CONFIG_FILE, config)
     return current_id
 
+def check_admin_permission(member):
+    # يسمح لمالكي السيرفر والإداريين الأساسيين
+    if member.guild_permissions.administrator or member.guild_permissions.manage_guild or member.guild_permissions.kick_members:
+        return True
+    
+    # يسمح لأي شخص يملك رتبة تحتوي على كلمات إدارية (صغرى، وسطى، عليا، طاقم، مسؤول)
+    admin_keywords = ["اداره", "إدارة", "طاقم", "مسؤول", "مسئول", "اداري", "إداري", "امن", "أمن"]
+    for role in member.roles:
+        role_name_lower = role.name.lower()
+        if any(keyword in role_name_lower for keyword in admin_keywords):
+            return True
+            
+    return False
+
 # ================= 🪪 نظام تقديم الهوية والتحقق للإدارة =================
 
 class IdentityAdminButtons(disnake.ui.View):
@@ -77,11 +91,8 @@ class IdentityAdminButtons(disnake.ui.View):
 
     @disnake.ui.button(label="قبول", style=disnake.ButtonStyle.green, custom_id="id_approve_global")
     async def id_approve(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
-        admin_roles = ["طاقم الاداره", "الاداره العليا"]
-        has_permission = any(role.name in admin_roles for role in inter.author.roles) or inter.author.guild_permissions.administrator
-        
-        if not has_permission:
-            return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط!", ephemeral=True)
+        if not check_admin_permission(inter.author):
+            return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط بمختلف رتبهم!", ephemeral=True)
         
         await inter.response.defer()
         member = inter.guild.get_member(self.applicant_id)
@@ -118,11 +129,8 @@ class IdentityAdminButtons(disnake.ui.View):
 
     @disnake.ui.button(label="رفض", style=disnake.ButtonStyle.red, custom_id="id_deny_global")
     async def id_deny(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
-        admin_roles = ["طاقم الاداره", "الاداره العليا"]
-        has_permission = any(role.name in admin_roles for role in inter.author.roles) or inter.author.guild_permissions.administrator
-        
-        if not has_permission:
-            return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط!", ephemeral=True)
+        if not check_admin_permission(inter.author):
+            return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط بمختلف رتبهم!", ephemeral=True)
             
         embed = inter.message.embeds[0]
         embed.title = "❌ تم رفض طلب الهوية"
@@ -162,7 +170,6 @@ class IdentityConfirmView(disnake.ui.View):
         embed.add_field(name="📝 قانون السيرفر:", value=self.answers["rule1"], inline=False)
         embed.add_field(name="📝 قانون الرول:", value=self.answers["rule2"], inline=False)
         
-        # تم إصلاح السطر أدناه بالكامل وفصله لتجنب SyntaxError نهائياً
         oath_part = "```\n" + str(OATH_TEXT_ORIGINAL) + "\n```"
         embed.add_field(name="📜 الـحـلـف المـطـلـوب (الأصـلـي):", value=oath_part, inline=False)
         
@@ -263,9 +270,8 @@ def get_next_friday_one_pm():
 
 @bot.command(name="الرواتب")
 async def salary_status(ctx):
-    admin_roles = ["طاقم الاداره", "الاداره العليا"]
-    has_permission = any(role.name in admin_roles for role in ctx.author.roles) or ctx.author.guild_permissions.administrator
-    if not has_permission: return await ctx.send("❌ هذا الأمر مخصص لطاقم الموارد البشرية والإدارة العليا فقط!")
+    if not check_admin_permission(ctx.author): 
+        return await ctx.send("❌ هذا الأمر مخصص لطاقم الإدارة والمسؤولين فقط!")
 
     next_payout = get_next_friday_one_pm()
     remaining = next_payout - datetime.now()
@@ -394,7 +400,7 @@ async def work(ctx):
     
     earned = random.randint(500, 1500)
     user["cash"] += earned
-    user["work_cooldown"] = now + 300 # كوول داون 5 دقائق
+    user["work_cooldown"] = now + 300 
     update_user(ctx.guild.id, ctx.author.id, user)
     
     jobs = ["مهندساً في شركة بلاك لاين", "مستشاراً قانونياً للإدارة", "ميكانيكياً في رول بلاي السيرفر", "عسكرياً في خفر السواحل"]
@@ -408,7 +414,7 @@ async def crime(ctx):
         remaining = int(user["crime_cooldown"] - now)
         return await ctx.send(f"🚨 عيون الشرطة عليك حالياً! انتظر {remaining} ثانية قبل التخطيط لجريمة أخرى.")
     
-    user["crime_cooldown"] = now + 600 # 10 دقائق
+    user["crime_cooldown"] = now + 600 
     success = random.choice([True, False, True])
     if success:
         earned = random.randint(1500, 4000)
@@ -425,9 +431,8 @@ async def crime(ctx):
 
 @bot.command(name="سجن")
 async def jail_member(ctx, member: disnake.Member, minutes: int, *, reason: str = "غير محدد"):
-    admin_roles = ["طاقم الاداره", "الاداره العليا"]
-    has_permission = any(role.name in admin_roles for role in ctx.author.roles) or ctx.author.guild_permissions.administrator
-    if not has_permission: return await ctx.send("❌ هذا الأمر الإداري مخصص لأعضاء الأمن الداخلي والإدارة!")
+    if not check_admin_permission(ctx.author): 
+        return await ctx.send("❌ هذا الأمر الإداري مخصص لأعضاء الأمن الداخلي والإدارة!")
     
     jail_db = load(JAIL_FILE)
     unid = str(member.id)
@@ -444,9 +449,8 @@ async def jail_member(ctx, member: disnake.Member, minutes: int, *, reason: str 
 
 @bot.command(name="إفراج")
 async def unjail_member(ctx, member: disnake.Member):
-    admin_roles = ["طاقم الاداره", "الاداره العليا"]
-    has_permission = any(role.name in admin_roles for role in ctx.author.roles) or ctx.author.guild_permissions.administrator
-    if not has_permission: return await ctx.send("❌ لا تملك صلاحية الإفراج.")
+    if not check_admin_permission(ctx.author): 
+        return await ctx.send("❌ لا تملك صلاحية الإفراج.")
     
     jail_db = load(JAIL_FILE)
     unid = str(member.id)
@@ -465,9 +469,8 @@ async def unjail_member(ctx, member: disnake.Member):
 
 @bot.command(name="تصفير-رتب")
 async def reset_roles(ctx, member: disnake.Member):
-    admin_roles = ["طاقم الاداره", "الاداره العليا"]
-    has_permission = any(role.name in admin_roles for role in ctx.author.roles) or ctx.author.guild_permissions.administrator
-    if not has_permission: return await ctx.send("❌ هذا الأمر مخصص لطاقم الإدارة العليا فقط!")
+    if not check_admin_permission(ctx.author): 
+        return await ctx.send("❌ هذا الأمر مخصص لطاقم الإدارة والمسؤولين فقط!")
 
     if member.id == ctx.guild.owner_id: return await ctx.send("❌ لا يمكنك تصفير رتب مالك السيرفر ومؤسسه!")
     try:
