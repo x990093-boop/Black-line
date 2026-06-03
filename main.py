@@ -3,40 +3,35 @@ from disnake.ext import commands, tasks
 import json
 import os
 from datetime import datetime, timedelta, time
-import random
 
 intents = disnake.Intents.all()
 intents.message_content = True
 
 bot = commands.Bot(command_prefix="-", intents=intents)
 
-# ==== ملفات قواعد البيانات ====
+# ==== ملفات قواعد البيانات الأصلية لبيانات سيرفرك ====
 BANK_FILE = "bank.json"
 CONFIG_FILE = "config.json"
-JAIL_FILE = "jail.json"
 
-# ==== إعدادات الرومات الثابتة ====
-APPEAL_CHANNEL_ID = 1498633999579615242  
+# ==== إعدادات الرومات الثابتة لسيرفرك ====
 ADMIN_LOG_CHANNEL_ID = 1509623362991821011  
-
 IDENTITY_SETUP_CHANNEL = 1484406368524828672   # روم بنل تقديم الهوية
 IDENTITY_ADMIN_CHANNEL = 1484405475805233202   # روم قبول ورفض الهوية للإدارة
 
-# ==== إعدادات الرتب المطلوبة عند القبول ====
+# ==== رتب التفعيل التلقائي عند القبول ====
 AUTO_ROLES = [1491881927005835407, 1492523810937897132, 1491881746151510158]
 
-# النص الأصلي والكامل للحلف
-OATH_TEXT_ORIGINAL = "اقـسـم بـالله الـعـظـيـم انـا ( اسـمك ) انـي لـن اخـرب بـ رولات بـلاك لايـن و لـن اسـرب اي رابـط مـن روابـط الـسـيـرفـر وانـي لـن اهـكـر الـسـيـرفـر والله عـلـى مـا اقـولـه شـهـيـد"
+# النص الأصلي للحلف
+OATH_TEXT_ORIGINAL = "اقـسـم بـالله الـعـظـيـم انـا ( اسـمك ) انـي لـن اخـرب بـ رولات بـلاك لايـن و لـن اسـرب اي رابـط مـن روابـط الـسـيـرفـر وانـي لـن اهـكـر الـسـيـرفـر والله عـلـى مـا اقـولـه شـهـي\nد"
 
 
 # ================= 🛡️ دالة التحقق الشاملة من رتب طاقم العمل والإدارة =================
 def check_admin_permission(member):
-    # 1. إذا كان العضو يملك صلاحيات إدارية عامة في السيرفر
     if member.guild_permissions.administrator or member.guild_permissions.manage_guild or member.guild_permissions.kick_members or member.guild_permissions.manage_roles:
         return True
     
-    # 2. الفحص بالكلمات الدلالية لجميع رتب الإدارة الصغرى والعليا وطاقم الدعم والأمن
-    admin_keywords = ["اداره", "إدارة", "طاقم", "مسؤول", "مسئول", "اداري", "إداري", "امن", "أمن", "دعم", "شرف", "مراقب"]
+    # الفحص بالكلمات الدلالية لجميع الرتب لضمان عمل الأزرار مع كل طاقم العمل
+    admin_keywords = ["اداره", "إدارة", "طاقم", "مسؤول", "مسئول", "اداري", "إداري", "امن", "أمن", "دعم", "شرف", "مراقب", "مشرف"]
     for role in member.roles:
         role_name_lower = role.name.lower()
         if any(keyword in role_name_lower for keyword in admin_keywords):
@@ -45,7 +40,7 @@ def check_admin_permission(member):
     return False
 
 
-# ================= ⚙️ دوال المساعدة وقواعد البيانات الأصلية =================
+# ================= ⚙️ دوال النظام المالي الأساسي (تنسيق الأرقام والحفظ) =================
 def format_num(val):
     try: return f"{int(val):,} ⃁"
     except: return str(val)
@@ -66,7 +61,7 @@ def get_user(gid, uid):
     gid, uid = str(gid), str(uid)
     db.setdefault(gid, {})
     if uid not in db[gid]:
-        db[gid][uid] = {"cash": 1000, "bank": 0, "work_cooldown": 0, "crime_cooldown": 0, "rob_cooldown": 0}
+        db[gid][uid] = {"cash": 1000, "bank": 0}
         save(BANK_FILE, db)
     return db[gid][uid]
 
@@ -76,7 +71,7 @@ def update_user(gid, uid, data):
     save(BANK_FILE, db)
 
 
-# ================= 🪪 نظام تقديم الهوية والتحقق للإدارة =================
+# ================= 🪪 نظام الهوية المستقل والأزرار للإدارة =================
 
 class IdentityAdminButtons(disnake.ui.View):
     def __init__(self, applicant_id=None, roblox_name=""):
@@ -122,7 +117,7 @@ class IdentityAdminButtons(disnake.ui.View):
         try:
             reply_embed = disnake.Embed(
                 title="🎉 تهانينا تفعيل هويتك!",
-                description=f"تم قبول طلب الهوية الخاص بك بنجاح!\n\n**🪪 رقم الهوية:** {identity_id}\n**👤 الاسم الجديد:** {new_nick}\n\nنتمنى لك وقتاً ممتعاً باللعب.",
+                description=f"تم قبول طلب الهوية الخاص بك بنجاح!\n\n**🪪 رقم الهوية:** {identity_id}\n**👤 الاسم الجديد:** {new_nick}",
                 color=0x00ff00
             )
             await member.send(embed=reply_embed)
@@ -170,9 +165,8 @@ class IdentityConfirmView(disnake.ui.View):
         embed.add_field(name="📝 حسابك روبلوكس:", value=self.answers["roblox"], inline=True)
         embed.add_field(name="📝 قانون السيرفر:", value=self.answers["rule1"], inline=False)
         embed.add_field(name="📝 قانون الرول:", value=self.answers["rule2"], inline=False)
-        
-        embed.add_field(name="📜 الـحـلـف المـطـلـوب (الأصـلـي):", value=f"```\n{OATH_TEXT_ORIGINAL}\n```", inline=False)
-        embed.add_field(name="✍️ كـتـابـة الـعـضـو الـحـالـيـة:", value=f"```\n{self.answers['oath']}\n```", inline=False)
+        embed.add_field(name="📜 الحلف المطلوب:", value=f"```\n{OATH_TEXT_ORIGINAL}\n```", inline=False)
+        embed.add_field(name="✍️ كتابة العضو:", value=f"```\n{self.answers['oath']}\n```", inline=False)
         
         if self.answers["image_url"]:
             embed.set_image(url=self.answers["image_url"])
@@ -223,7 +217,7 @@ class IdentityStartConfirmation(disnake.ui.View):
 
             await dm.send(embed=disnake.Embed(title="❓ تأكيد التقديم النهائي", description="هل أنت متأكد من مراجعة إجاباتك وإرسالها للإدارة؟", color=0xe74c3c), view=IdentityConfirmView(answers, self.bot, self.guild_id))
         except Exception as e:
-            try: await inter.author.send(embed=disnake.Embed(title="❌ إلغاء التقديم تلقائياً", description="انتهى الوقت المتاح للإجابة أو تم إغلاق الخاص لديك.", color=0xff0000))
+            try: await inter.author.send(embed=disnake.Embed(title="❌ إلغاء التقديم تلقائياً", description="انتهى الوقت المتاح أو تم إغلاق الخاص لديك.", color=0xff0000))
             except: pass
         self.stop()
 
@@ -247,7 +241,7 @@ class IdentityPanelButton(disnake.ui.View):
             await inter.followup.send("❌ تعذر إرسال الأسئلة إليك، يرجى فتح رسائل الخاص بالسيرفر أولاً (Allow DMs).", ephemeral=True)
 
 
-# ================= 💵 نظام الرواتب والموارد البشرية الأصلي الخاص بك =================
+# ================= 🏦 نظام البنك والرواتب والمخالفات الرسمي لسيرفرك =================
 
 SALARY_ROLES = {
     "دعم فني مبتدئ": 4500, "دعم الفني مترقي": 5500, "دعم فني محترف": 6500, "مسؤول الدعم فني": 8500,
@@ -317,65 +311,58 @@ async def auto_salary_check():
                 embed.add_field(name="💰 إجمالي الميزانية المستهلكة:", value=format_num(total_distributed), inline=True)
                 await log_channel.send(embed=embed)
 
-
-# ================= 🏦 الأوامر الاقتصادية المتكاملة والتحويلات الأصلي الخاص بك =================
-
 @bot.command(name="حسابي", aliases=["فلوسي", "بنك"])
 async def my_account(ctx):
     user = get_user(ctx.guild.id, ctx.author.id)
-    embed = disnake.Embed(title=f"🏦 الحساب المالي لـ {ctx.author.display_name}", color=0x2b2d31)
-    embed.add_field(name="💵 النقود بالكاش (Cash):", value=format_num(user["cash"]), inline=True)
-    embed.add_field(name="💳 الرصيد في البنك (Bank):", value=format_num(user["bank"]), inline=True)
-    embed.add_field(name="📊 المجموع الإجمالي للثروة:", value=format_num(user["cash"] + user["bank"]), inline=False)
+    embed = disnake.Embed(title=f"🏦 الحساب المالي البنكي | {ctx.author.display_name}", color=0x2b2d31)
+    embed.add_field(name="💵 نقود الكاش (محفظتك):", value=format_num(user["cash"]), inline=True)
+    embed.add_field(name="💳 رصيد البنك المركزي:", value=format_num(user["bank"]), inline=True)
+    embed.add_field(name="📊 مجموع الثروة المالي:", value=format_num(user["cash"] + user["bank"]), inline=False)
     await ctx.send(embed=embed)
 
 @bot.command(name="حساب")
 async def account(ctx, member: disnake.Member = None):
     if not member: member = ctx.author
     user = get_user(ctx.guild.id, member.id)
-    embed = disnake.Embed(title=f"🏦 الحساب المالي لـ {member.display_name}", color=0x2b2d31)
-    embed.add_field(name="💵 النقود بالكاش (Cash):", value=format_num(user["cash"]), inline=True)
-    embed.add_field(name="💳 الرصيد في البنك (Bank):", value=format_num(user["bank"]), inline=True)
-    embed.add_field(name="📊 المجموع الإجمالي للثروة:", value=format_num(user["cash"] + user["bank"]), inline=False)
+    embed = disnake.Embed(title=f"🏦 الحساب المالي البنكي | {member.display_name}", color=0x2b2d31)
+    embed.add_field(name="💵 نقود الكاش (محفظتك):", value=format_num(user["cash"]), inline=True)
+    embed.add_field(name="💳 رصيد البنك المركزي:", value=format_num(user["bank"]), inline=True)
+    embed.add_field(name="📊 مجموع الثروة المالي:", value=format_num(user["cash"] + user["bank"]), inline=False)
     await ctx.send(embed=embed)
 
 @bot.command(name="إيداع", aliases=["يدع"])
 async def deposit(ctx, amount: str):
     user = get_user(ctx.guild.id, ctx.author.id)
-    if amount.lower() == "كلها" or amount.lower() == "all": amount = user["cash"]
+    if amount.lower() in ["كلها", "all"]: amount = user["cash"]
     try: amount = int(amount)
-    except: return await ctx.send("❌ يرجى إدخال مبلغ صحيح وصالح للإيداع.")
-    
-    if amount <= 0: return await ctx.send("❌ لا يمكنك إيداع مبلغ صفر أو أقل من الصفر!")
-    if user["cash"] < amount: return await ctx.send("❌ أنت لا تملك هذا المبلغ الكافي في كاشك الحالي لتودعه.")
+    except: return await ctx.send("❌ يرجى تحديد مبلغ صحيح للإيداع.")
+    if amount <= 0 or user["cash"] < amount: return await ctx.send("❌ لا تملك هذا المبلغ الكافي لإيداعه.")
     
     user["cash"] -= amount
     user["bank"] += amount
     update_user(ctx.guild.id, ctx.author.id, user)
-    await ctx.send(f"✅ تم إيداع {format_num(amount)} بنجاح من محفظتك إلى حسابك بالبنك.")
+    await ctx.send(f"✅ تم إيداع {format_num(amount)} بنجاح في حسابك البنكي.")
 
 @bot.command(name="سحب", aliases=["يسحب"])
 async def withdraw(ctx, amount: str):
     user = get_user(ctx.guild.id, ctx.author.id)
-    if amount.lower() == "كلها" or amount.lower() == "all": amount = user["bank"]
+    if amount.lower() in ["كلها", "all"]: amount = user["bank"]
     try: amount = int(amount)
-    except: return await ctx.send("❌ يرجى إدخال مبلغ صحيح وصالح للسحب.")
-    
-    if amount <= 0: return await ctx.send("❌ لا يمكنك سحب مبلغ صفر أو أقل!")
-    if user["bank"] < amount: return await ctx.send("❌ حسابك البنكي لا يحتوي على الرصيد الكافي لسحب هذا المبلغ.")
+    except: return await ctx.send("❌ يرجى تحديد مبلغ صحيح للسحب.")
+    if amount <= 0 or user["bank"] < amount: return await ctx.send("❌ رصيدك البنكي لا يكفي لسحب هذا المبلغ.")
     
     user["bank"] -= amount
     user["cash"] += amount
     update_user(ctx.guild.id, ctx.author.id, user)
-    await ctx.send(f"✅ تم سحب {format_num(amount)} بنجاح من حسابك البنكي إلى محفظتك الكاش.")
+    await ctx.send(f"✅ تم سحب {format_num(amount)} كاش بنجاح من البنك.")
 
 @bot.command(name="تحويل", aliases=["يحول"])
 async def transfer(ctx, member: disnake.Member, amount: int):
-    if member.id == ctx.author.id: return await ctx.send("❌ لا يمكنك تحويل الأموال إلى نفسك!")
-    if amount <= 0: return await ctx.send("❌ يرجى تحديد قيمة تحويل أكبر من الصفر.")
+    if member.id == ctx.author.id: return await ctx.send("❌ لا يمكنك التحويل لنفسك.")
+    if amount <= 0: return await ctx.send("❌ يرجى تحديد قيمة صحيحة للتحويل.")
     
     sender = get_user(ctx.guild.id, ctx.author.id)
-    if sender["bank"] < amount: return await ctx.send("❌ رصيدك البنكي الحالي لا يكفي لإتمام هذه الحوالة.")
+    if sender["bank"] < amount: return await ctx.send("❌ رصيدك البنكي الحالي لا يكفي لإتمام التحويل.")
     
     receiver = get_user(ctx.guild.id, member.id)
     sender["bank"] -= amount
@@ -383,99 +370,27 @@ async def transfer(ctx, member: disnake.Member, amount: int):
     
     update_user(ctx.guild.id, ctx.author.id, sender)
     update_user(ctx.guild.id, member.id, receiver)
-    await ctx.send(f"💸 تم تحويل مبلغ {format_num(amount)} من حسابك بنجاح إلى حساب {member.mention}.")
+    await ctx.send(f"💸 تم تحويل {format_num(amount)} بنجاح من حسابك إلى حساب {member.mention}.")
 
-
-# ================= 🎮 الألعاب والعمل وكسب المال الأصلي الخاص بك =================
-
-@bot.command(name="عمل", aliases=["اشتغل"])
-async def work(ctx):
-    user = get_user(ctx.guild.id, ctx.author.id)
-    now = datetime.now().timestamp()
-    if now < user.get("work_cooldown", 0):
-        remaining = int(user["work_cooldown"] - now)
-        return await ctx.send(f"⏳ أنت متعب من العمل الحالي! يرجى الانتظار {remaining} ثانية لتستطيع العمل مجدداً.")
+@bot.command(name="مخالفة")
+async def give_fine(ctx, member: disnake.Member, amount: int, *, reason: str = "مخالفة أنظمة المدينة"):
+    if not check_admin_permission(ctx.author):
+        return await ctx.send("❌ الصلاحية لطاقم الأمن والإدارة فقط!")
+    if amount <= 0: return await ctx.send("❌ يرجى تحديد مبلغ مخالفة صالح.")
     
-    earned = random.randint(500, 1500)
-    user["cash"] += earned
-    user["work_cooldown"] = now + 300 
-    update_user(ctx.guild.id, ctx.author.id, user)
+    user = get_user(ctx.guild.id, member.id)
+    user["bank"] = max(0, user["bank"] - amount)
+    update_user(ctx.guild.id, member.id, user)
     
-    jobs = ["مهندساً في شركة بلاك لاين", "مستشاراً قانونياً للإدارة", "ميكانيكياً في رول بلاي السيرفر", "عسكرياً في خفر السواحل"]
-    await ctx.send(f"⚒️ لقد عملت {random.choice(jobs)} وكسبت مبلغ {format_num(earned)} كاش!")
-
-@bot.command(name="جريمة", aliases=["سرقة"])
-async def crime(ctx):
-    user = get_user(ctx.guild.id, ctx.author.id)
-    now = datetime.now().timestamp()
-    if now < user.get("crime_cooldown", 0):
-        remaining = int(user["crime_cooldown"] - now)
-        return await ctx.send(f"🚨 عيون الشرطة عليك حالياً! انتظر {remaining} ثانية قبل التخطيط لجريمة أخرى.")
-    
-    user["crime_cooldown"] = now + 600 
-    success = random.choice([True, False, True])
-    if success:
-        earned = random.randint(1500, 4000)
-        user["cash"] += earned
-        await ctx.send(f"🥷 نجحت الجريمة! قمت بسطو مسلح على متجر محلي وهربت بمبلغ {format_num(earned)} كاش.")
-    else:
-        fine = random.randint(800, 2000)
-        user["cash"] = max(0, user["cash"] - fine)
-        await ctx.send(f"👮 فشلت الجريمة وألقت مكافحة الشغب القبض عليك! وتم تغريمك بمبلغ {format_num(fine)} من أموالك.")
-    update_user(ctx.guild.id, ctx.author.id, user)
+    embed = disnake.Embed(title="🚨 رادار رول بلاي - تحرير مخالفة مالية", color=0xff0000)
+    embed.add_field(name="👤 العضو المخالف:", value=member.mention, inline=True)
+    embed.add_field(name="👮 القائم بالضبط:", value=ctx.author.mention, inline=True)
+    embed.add_field(name="💰 قيمة الغرامة المسحوبة:", value=format_num(amount), inline=True)
+    embed.add_field(name="📝 السبب والمبرر:", value=reason, inline=False)
+    await ctx.send(embed=embed)
 
 
-# ================= 👮 نظام العقوبات والسجن الأصلي الخاص بك =================
-
-@bot.command(name="سجن")
-async def jail_member(ctx, member: disnake.Member, minutes: int, *, reason: str = "غير محدد"):
-    if not check_admin_permission(ctx.author): 
-        return await ctx.send("❌ هذا الأمر الإداري مخصص لأعضاء الأمن الداخلي والإدارة!")
-    
-    jail_db = load(JAIL_FILE)
-    unid = str(member.id)
-    release_time = datetime.now() + timedelta(minutes=minutes)
-    jail_db[unid] = {"release_at": release_time.timestamp(), "reason": reason, "author": ctx.author.name}
-    save(JAIL_FILE, jail_db)
-    
-    try:
-        jail_role = disnake.utils.get(ctx.guild.roles, name="مسجون")
-        if jail_role: await member.add_roles(jail_role)
-    except: pass
-    
-    await ctx.send(f"🔒 تم إيداع المتهم {member.mention} السجن المركزي لمدة {minutes} دقيقة بسبب: {reason}.")
-
-@bot.command(name="إفراج")
-async def unjail_member(ctx, member: disnake.Member):
-    if not check_admin_permission(ctx.author): 
-        return await ctx.send("❌ لا تملك صلاحية الإفراج.")
-    
-    jail_db = load(JAIL_FILE)
-    unid = str(member.id)
-    if unid in jail_db:
-        del jail_db[unid]
-        save(JAIL_FILE, jail_db)
-    
-    try:
-        jail_role = disnake.utils.get(ctx.guild.roles, name="مسجون")
-        if jail_role: await member.remove_roles(jail_role)
-    except: pass
-    await ctx.send(f"🔓 تم الإفراج والعفو عن العضو {member.mention} وإزالة قيود السجن عنه بنجاح.")
-
-
-# ================= 👑 الأوامر الإدارية والتحكم بالسيرفر =================
-
-@bot.command(name="تصفير-رتب")
-async def reset_roles(ctx, member: disnake.Member):
-    if not check_admin_permission(ctx.author): 
-        return await ctx.send("❌ هذا الأمر مخصص لطاقم الإدارة والمسؤولين فقط!")
-
-    if member.id == ctx.guild.owner_id: return await ctx.send("❌ لا يمكنك تصفير رتب مالك السيرفر ومؤسسه!")
-    try:
-        await member.edit(roles=[])
-        await ctx.send(f"👑 **[أمر إداري]** تم تصفير وسحب جميع الرتب والامتيازات من {member.mention} بنجاح!")
-    except:
-        await ctx.send("❌ البوت لا يملك الصلاحيات الإدارية العليا لتعديل رتب هذا الشخص.")
+# ================= 👑 أوامر التحكم بالإدارة العليا =================
 
 @bot.command(name="تصفير-مال")
 async def reset_money(ctx, member: disnake.Member):
@@ -484,7 +399,7 @@ async def reset_money(ctx, member: disnake.Member):
     user["cash"] = 1000
     user["bank"] = 0
     update_user(ctx.guild.id, member.id, user)
-    await ctx.send(f"💰 تم تصفير حساب {member.mention} المالي وإعادته للرصيد الافتراضي الافتتاحي.")
+    await ctx.send(f"💰 تم تصفير وإعادة تهيئة الحساب المالي لـ {member.mention} بنجاح.")
 
 
 # ================= ⚡ تشغيل البوت والـ Views الحية =================
@@ -492,21 +407,16 @@ async def reset_money(ctx, member: disnake.Member):
 @bot.event
 async def on_ready():
     print(f"✅ تم تسجيل الدخول بنجاح باسم البوت: {bot.user}")
-    
     try:
         bot.add_view(IdentityPanelButton(bot))
         bot.add_view(IdentityAdminButtons(None, ""))
-    except Exception as e:
-        print(f"⚠️ خطأ في تحميل الأزرار الدائمة: {e}")
+    except Exception as e: print(f"⚠️ خطأ في تحميل الأزرار: {e}")
     
     try:
-        if not auto_salary_check.is_running(): 
-            auto_salary_check.start()
-    except Exception as e:
-        print(f"⚠️ خطأ في تشغيل لوب الرواتب التلقائي: {e}")
+        if not auto_salary_check.is_running(): auto_salary_check.start()
+    except Exception as e: print(f"⚠️ خطأ في لوب الرواتب: {e}")
         
     await bot.wait_until_ready()
-    
     channel_id_setup = bot.get_channel(IDENTITY_SETUP_CHANNEL)
     if channel_id_setup:
         try:
@@ -517,9 +427,7 @@ async def on_ready():
             )
             embed_id.set_footer(text="الأحوال المدنية | BlackLine Roleplay")
             await channel_id_setup.send(embed=embed_id, view=IdentityPanelButton(bot))
-            print("📬 تم تحديث بنل تقديم الهويات التلقائي بنجاح!")
-        except Exception as e:
-            print(f"❌ تعذر إرسال بنل البوت: {e}")
+        except: pass
 
 @bot.event
 async def on_message(message):
