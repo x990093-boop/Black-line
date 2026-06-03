@@ -31,11 +31,9 @@ OATH_TEXT_ORIGINAL = "اقـسـم بـالله الـعـظـيـم انـا ( 
 
 # ================= 🛡️ دالة التحقق الشاملة (تشمل الإدارة الصغرى والعليا) =================
 def check_admin_permission(member):
-    # يسمح لمالكي السيرفر والإداريين الأساسيين تلقائياً
     if member.guild_permissions.administrator or member.guild_permissions.manage_guild or member.guild_permissions.kick_members:
         return True
     
-    # فحص الرتب الذكي ليشمل الإدارة الصغرى والوسطى والعليا وطاقم العمل
     admin_keywords = ["اداره", "إدارة", "طاقم", "مسؤول", "مسئول", "اداري", "إداري", "امن", "أمن"]
     for role in member.roles:
         role_name_lower = role.name.lower()
@@ -86,7 +84,6 @@ class IdentityAdminButtons(disnake.ui.View):
 
     @disnake.ui.button(label="قبول", style=disnake.ButtonStyle.green, custom_id="id_approve_global")
     async def id_approve(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
-        # السماح للإدارة الصغرى والعليا بالضغط
         if not check_admin_permission(inter.author):
             return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط بمختلف رتبهم!", ephemeral=True)
         
@@ -131,7 +128,6 @@ class IdentityAdminButtons(disnake.ui.View):
 
     @disnake.ui.button(label="رفض", style=disnake.ButtonStyle.red, custom_id="id_deny_global")
     async def id_deny(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
-        # السماح للإدارة الصغرى والعليا بالضغط
         if not check_admin_permission(inter.author):
             return await inter.response.send_message("❌ الصلاحية لطاقم الإدارة فقط بمختلف رتبهم!", ephemeral=True)
             
@@ -248,7 +244,7 @@ class IdentityPanelButton(disnake.ui.View):
     async def start_app(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
         await inter.response.send_message("📥 تم بدء العملية بنجاح! تفقد رسائلك الخاصة الآن لتعبئة الهوية الخاصة بك.", ephemeral=True)
         try:
-            await inter.author.send(embed=disnake.Embed(title="❓ تأكيد الرغبة في التقديم", description="هل أنت متأكد من رغبتك بالبدء بتقديم طلب هوية جديد في السيرفر? ", color=0x2b2d31), view=IdentityStartConfirmation(self.bot, inter.guild.id))
+            await inter.author.send(embed=disnake.Embed(title="❓ تأكيد الرغبة في التقديم", description="هل أنت متأكد من رغبتك بالبدء بتقديم طلب هوية جديد في السيرفر؟", color=0x2b2d31), view=IdentityStartConfirmation(self.bot, inter.guild.id))
         except:
             await inter.followup.send("❌ تعذر إرسال الأسئلة إليك، يرجى فتح رسائل الخاص بالسيرفر أولاً (Allow DMs).", ephemeral=True)
 
@@ -493,24 +489,31 @@ async def reset_money(ctx, member: disnake.Member):
     await ctx.send(f"💰 تم تصفير حساب {member.mention} المالي وإعادته للرصيد الافتراضي الافتتاحي.")
 
 
-# ================= ⚡ تشغيل البوت والتهيئة والـ Views التلقائية =================
+# ================= ⚡ تشغيل البوت الآمن والـ Views الحية =================
 
 @bot.event
 async def on_ready():
     print(f"✅ تم تسجيل الدخول بنجاح باسم البوت: {bot.user}")
     
-    # ربط دائم للأزرار حتى لو قفل البوت واشتغل
-    bot.add_view(IdentityPanelButton(bot))
-    bot.add_view(IdentityAdminButtons(None, ""))
+    # حماية الـ Views من الـ Crash باستعمال try
+    try:
+        bot.add_view(IdentityPanelButton(bot))
+        bot.add_view(IdentityAdminButtons(None, ""))
+    except Exception as e:
+        print(f"⚠️ خطأ في تحميل الأزرار الدائمة: {e}")
     
-    if not auto_salary_check.is_running(): auto_salary_check.start()
+    try:
+        if not auto_salary_check.is_running(): 
+            auto_salary_check.start()
+    except Exception as e:
+        print(f"⚠️ خطأ في تشغيل لوب الرواتب التلقائي: {e}")
         
     await bot.wait_until_ready()
     
+    # تحديث البنل بدون دالة البيرج (Purge) المسببة للكراش
     channel_id_setup = bot.get_channel(IDENTITY_SETUP_CHANNEL)
     if channel_id_setup:
         try:
-            await channel_id_setup.purge(limit=5)
             embed_id = disnake.Embed(
                 title="🪪 نظام الهويات والتصاريح الرسمي لسيرفر Black Line",
                 description="مرحباً بك في مركز استخراج الهويات والتصاريح الموحد.\nتقديم الهوية إلزامي لتستطيع بدء اللعب والحصول على الرتب والتفاعل داخل السيرفر ورول بلاي المدينة.",
@@ -520,7 +523,7 @@ async def on_ready():
             await channel_id_setup.send(embed=embed_id, view=IdentityPanelButton(bot))
             print("📬 تم تحديث بنل تقديم الهويات التلقائي بنجاح!")
         except Exception as e:
-            print(f"❌ تعذر تحديث بنل البوت: {e}")
+            print(f"❌ تعذر إرسال بنل البوت: {e}")
 
 @bot.event
 async def on_message(message):
