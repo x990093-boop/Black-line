@@ -1,6 +1,7 @@
 import disnake
 from disnake.ext import commands
 import json, os
+from datetime import datetime
 
 intents = disnake.Intents.all()
 intents.message_content = True
@@ -10,9 +11,16 @@ bot = commands.Bot(command_prefix="-", intents=intents)
 BANK_FILE = "bank.json"
 VIOLATION_FILE = "violations.json"
 
-# 🛠️ الأقسام والرومات اللي حددتها أنت
-APPEAL_CHANNEL_ID = 1514971328124424222  # روم تقديم الاعتراض (اللي يرسل فيه البوت الإمبيد تلقائياً)
-ADMIN_LOG_CHANNEL_ID = 1515034021510381568  # روم الإدارة (اللي توجد فيه أزرار التحكم والقبول والرفض)
+# 🛠️ الأقسام والرومات المعينة من قبلك
+APPEAL_CHANNEL_ID = 1514971328124424222      # روم تقديم الاعتراض للعامة
+ADMIN_LOG_CHANNEL_ID = 1515034021510381568   # روم الإدارة للتحكم بالاعتراضات
+
+# 📊 رومات نظام بصمة الإدارة الجديد
+DUTY_PANEL_CHANNEL_ID = 1508640601116250213  # روم بنل البصمة (إرسال تلقائي)
+DUTY_LOG_CHANNEL_ID = 1519022162621632542    # روم سجل الأونر (استقبال تقارير الشغل)
+
+# قاموس مؤقت لحفظ وقت بداية دخول الإداريين (يتحمل الرستارت لبيانات الجلسة الحالية)
+active_duty = {}
 
 # دالة مساعدة لتنسيق الأرقام بالفواصل مع رمز العملة ⃁
 def format_num(val):
@@ -240,7 +248,7 @@ async def clear_violation_by_reply(ctx):
 
             return await ctx.send(f"✅ **[أمر إداري]** تم إسقاط وإلغاء مخالفة **({violation_type})** المسجلة ضد {citizen_mention} بنجاح!")
 
-    await ctx.send("❌ لم يتم العثور على هذه المخالفة مسجلة في ملف المواطن.")
+    await ctx.send("❌ لم يتم العثور على هذه المخالفة مسجلة in ملف المواطن.")
 
 
 # ================= ⚖️ نظام لوحة التحكم في روم الاعتراض المخصص والأزرار والـ Modals =================
@@ -373,7 +381,6 @@ class RoomAppealBaseButton(disnake.ui.View):
         if gid not in db or uid not in db[gid] or len(db[gid][uid]) == 0:
             return await inter.response.send_message("❌ ملفك نظيف تماماً! ليس لديك أي مخالفات لتسجيل اعتراض عليها.", ephemeral=True)
 
-        # إرسال قائمة الاختيارات للشخص بشكل مخفي (ephemeral) يختار منها
         await inter.response.send_message(
             content="📋 ظهرت لك قائمة بمخالفاتك المسجلة حالياً، يرجى اختيار واحدة لتحديدها:",
             view=DirectAppealSelectView(db[gid][uid], inter.author.id),
@@ -439,7 +446,7 @@ class ViolationSelect(disnake.ui.Select):
             embed.set_image(url=self.image)
 
         await inter.message.delete()
-        await inter.channel.send(embed=embed) # ترسل هنا بدون أزرار، لأن التقديم صار بالروم العام
+        await inter.channel.send(embed=embed)
 
 class ViolationView(disnake.ui.View):
     def __init__(self, member, officer, image):
@@ -525,24 +532,86 @@ async def pay(ctx):
     await ctx.send(embed=embed, view=PayView(db[gid][uid]))
 
 
-# ================= ⚡ تشغيل البوت وإرسال إمبيد تقديم الاعتراض التلقائي =================
+# ================= 💼 نظام بصمة الإدارة (تسجيل الدخول / الخروج) =================
+
+class AdminDutyButtons(disnake.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @disnake.ui.button(label="🟢 تسجيل دخول", style=disnake.ButtonStyle.green, custom_id="duty_sign_in")
+    async def sign_in(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+        user_id = inter.author.id
+        
+        if user_id in active_duty:
+            return await inter.response.send_message("⚠️ أنت مسجل دخولك بالفعل ومناوبتك تعمل حالياً!", ephemeral=True)
+        
+        # حفظ وقت الدخول الفعلي
+        active_duty[user_id] = datetime.now()
+        
+        embed = disnake.Embed(
+            title="🟢 تم تسجيل دخولك بنجاح",
+            description="💼 بالتوفيق في عملك الإداري اليوم! البوت بدأ الآن حساب وقت مناوبتك تلقائياً.",
+            color=0x2ecc71
+        )
+        await inter.response.send_message(embed=embed, ephemeral=True)
+
+    @disnake.ui.button(label="🔴 تسجيل خروج", style=disnake.ButtonStyle.red, custom_id="duty_sign_out")
+    async def sign_out(self, button: disnake.ui.Button, inter: disnake.MessageInteraction):
+        user_id = inter.author.id
+        
+        if user_id not in active_duty:
+            return await inter.response.send_message("❌ لم تقم بتسجيل الدخول أولاً لكي تسجل خروجك!", ephemeral=True)
+        
+        start_time = active_duty.pop(user_id)
+        end_time = datetime.now()
+        
+        # حساب فارق الوقت بدقة
+        duration = end_time - start_time
+        total_seconds = int(duration.total_seconds())
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        time_string = f"{hours} ساعة و {minutes} دقيقة و {seconds} ثانية" if hours > 0 else f"{minutes} دقيقة و {seconds} ثانية"
+
+        # 1. إرسال رد فوري للمسؤول المستلم لإعلامه بنجاح البصمة
+        embed_user = disnake.Embed(
+            title="🔴 تم تسجيل خروجك بنجاح",
+            description=f"⏱️ **الوقت المشتغل:** {time_string}\n📦 تم إرسال تقرير عملك بنجاح إلى الإدارة العليا (الأونر). شكراً لجهودك!",
+            color=0xe74c3c
+        )
+        await inter.response.send_message(embed=embed_user, ephemeral=True)
+
+        # 2. إرسال التقرير التفصيلي لروم سجل الأونر المخصص
+        log_channel = bot.get_channel(DUTY_LOG_CHANNEL_ID)
+        if log_channel:
+            embed_log = disnake.Embed(title="📊 تقرير بصمة إدارية جديدة", color=0x2b2d31)
+            embed_log.add_field(name="👤 الإداري:", value=inter.author.mention, inline=True)
+            embed_log.add_field(name="🆔 المعرف:", value=f"`{inter.author.id}`", inline=True)
+            embed_log.add_field(name="⏱️ المدة المستغرقة:", value=f"**{time_string}**", inline=False)
+            embed_log.add_field(name="📅 تاريخ ووقت الدخول:", value=start_time.strftime('%Y-%m-%d %H:%M:%S'), inline=True)
+            embed_log.add_field(name="📅 تاريخ ووقت الخروج:", value=end_time.strftime('%Y-%m-%d %H:%M:%S'), inline=True)
+            embed_log.set_thumbnail(url=inter.author.display_avatar.url)
+            
+            await log_channel.send(embed=embed_log)
+
+
+# ================= ⚡ تشغيل البوت وإرسال الإمبيدات التلقائية =================
 
 @bot.event
 async def on_ready():
     print(f"✅ تم تشغيل البوت بنجاح باسم: {bot.user}")
     
-    # ربط الأزرار الثابتة لكي لا تعطل عند ريستارت البوت
+    # ربط الأزرار الثابتة لكي لا تعطل عند ريستارت البوت (الاعتراضات + البصمة)
     bot.add_view(RoomAppealBaseButton())
     bot.add_view(AdminAppealButtons(None, None))
+    bot.add_view(AdminDutyButtons())
     
-    # إرسال رسالة التقديم الثابتة في روم المواطنين المخصص
-    channel = bot.get_channel(APPEAL_CHANNEL_ID)
-    if channel:
+    # 1. تحديث روم الاعتراضات تلقائياً
+    channel_appeal = bot.get_channel(APPEAL_CHANNEL_ID)
+    if channel_appeal:
         try:
-            # تنظيف الروم أولاً لكي لا تتكرر الرسائل عند كل تشغيل
-            await channel.purge(limit=10)
-            
-            embed = disnake.Embed(
+            await channel_appeal.purge(limit=10)
+            embed_appeal = disnake.Embed(
                 title="⚖️ المحكمة الإدارية | تقديم طلبات الاعتراض",
                 description=(
                     "إذا كنت ترى أن هناك مخالفة مرورية سجلت ضدك بشكل خاطئ أو تعسفي، "
@@ -551,12 +620,30 @@ async def on_ready():
                 ),
                 color=0x2b2d31
             )
-            embed.set_footer(text="نظام الاعتراضات الآلي والمنظم للسيرفر")
-            
-            await channel.send(embed=embed, view=RoomAppealBaseButton())
+            embed_appeal.set_footer(text="نظام الاعتراضات الآلي والمنظم للسيرفر")
+            await channel_appeal.send(embed=embed_appeal, view=RoomAppealBaseButton())
             print("📬 تم تحديث وإرسال إمبيد الاعتراض في الروم المخصص بنجاح.")
         except Exception as e:
             print(f"❌ حدث خطأ أثناء محاولة تحديث روم الاعتراضات: {e}")
+
+    # 2. إرسال وتحديث إمبيد بصمة الإدارة تلقائياً في الروم المحدد
+    channel_duty = bot.get_channel(DUTY_PANEL_CHANNEL_ID)
+    if channel_duty:
+        try:
+            await channel_duty.purge(limit=10)
+            
+            # الإمبيد المطلوب: العنوان فوق، والنص التوجيهي بالأسفل
+            embed_duty = disnake.Embed(
+                title="💼 بصمة ادارهـ",
+                description="يرجى تسجيل دخول عند بدء الشغل وتسجيل الخروج عند إنهاء الشغل",
+                color=0x2b2d31
+            )
+            embed_duty.set_footer(text="نظام مراقبة وضبط ساعات العمل للإدارة")
+            
+            await channel_duty.send(embed=embed_duty, view=AdminDutyButtons())
+            print("📬 تم تحديث وإرسال إمبيد بصمة الإدارة تلقائياً بنجاح.")
+        except Exception as e:
+            print(f"❌ حدث خطأ أثناء إرسال إمبيد البصمة: {e}")
 
 @bot.event
 async def on_message(message):
